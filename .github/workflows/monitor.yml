@@ -60,11 +60,18 @@ jobs:
             echo "No repository changes to commit."
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/state.json data/history.json reports/
           git commit -m "chore: update AI server commoditization monitor"
-          git push
+
+          # The default branch may move while this workflow is running (for example,
+          # when code/documentation is edited in parallel). Rebase the generated
+          # state/report commit onto the latest remote main before pushing.
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
 
       - name: Create issue for completed earnings cycle
         if: steps.tracker.outputs.report_created == 'true'
