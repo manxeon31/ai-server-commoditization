@@ -87,3 +87,18 @@ jobs:
             echo "Report: [${REPORT_PATH}](${REPO_URL}/blob/main/${REPORT_PATH})"
           } > /tmp/issue-body.md
           gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+
+      - name: Send Telegram notification
+        if: steps.tracker.outputs.report_created == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPORT_PATH: ${{ steps.tracker.outputs.report_path }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are missing. Reuse TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID from your existing alert repos."
+            exit 1
+          fi
+          python -m ai_server_tracker.telegram_notify \
+            --report-url "${REPO_URL}/blob/main/${REPORT_PATH}"
