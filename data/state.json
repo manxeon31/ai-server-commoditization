@@ -1,4 +1,10 @@
 {
-  "version": 1,
-  "last_complete_filings": {}
+  "baseline_established_on": "2026-09-06",
+  "last_complete_filings": {
+    "dell": "0001571996-26-000039",
+    "hpe": "0001645590-26-000078",
+    "nvidia": "0001045810-26-000073",
+    "smci": "0001375365-26-000021"
+  },
+  "version": 1
 }
