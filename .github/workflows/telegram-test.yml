@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Send test Telegram message
+      - name: Validate Telegram bot and chat
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -20,6 +20,8 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import urllib.error
+          import urllib.parse
           import urllib.request
 
           token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -27,21 +29,53 @@ jobs:
           if not token or not chat_id:
               raise SystemExit("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID repository secret.")
 
-          payload = json.dumps({
-              "chat_id": chat_id,
-              "text": "[AI Server Commoditization]\nTelegram connectivity test successful.",
-              "disable_web_page_preview": True,
-          }).encode("utf-8")
+          base = f"https://api.telegram.org/bot{token}"
 
-          request = urllib.request.Request(
-              f"https://api.telegram.org/bot{token}/sendMessage",
-              data=payload,
-              headers={"Content-Type": "application/json"},
-              method="POST",
+          def call(method, payload=None):
+              data = None
+              headers = {}
+              if payload is not None:
+                  data = json.dumps(payload).encode("utf-8")
+                  headers["Content-Type"] = "application/json"
+              request = urllib.request.Request(
+                  f"{base}/{method}",
+                  data=data,
+                  headers=headers,
+                  method="POST" if data is not None else "GET",
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      return json.loads(response.read().decode("utf-8"))
+              except urllib.error.HTTPError as exc:
+                  raw = exc.read().decode("utf-8", errors="replace")
+                  try:
+                      body = json.loads(raw)
+                  except json.JSONDecodeError:
+                      body = {"http_status": exc.code, "body": raw}
+                  raise SystemExit(f"Telegram {method} failed: {body}") from None
+
+          bot = call("getMe")
+          if not bot.get("ok"):
+              raise SystemExit(f"Telegram getMe returned failure: {bot}")
+          username = bot.get("result", {}).get("username", "unknown")
+          print(f"Bot token valid. Bot username: @{username}")
+
+          chat = call("getChat", {"chat_id": chat_id})
+          if not chat.get("ok"):
+              raise SystemExit(f"Telegram getChat returned failure: {chat}")
+          chat_type = chat.get("result", {}).get("type", "unknown")
+          print(f"Chat ID valid for this bot. Chat type: {chat_type}")
+
+          sent = call(
+              "sendMessage",
+              {
+                  "chat_id": chat_id,
+                  "text": "[AI Server Commoditization]\nTelegram connectivity test successful.",
+                  "disable_web_page_preview": True,
+              },
           )
-          with urllib.request.urlopen(request, timeout=20) as response:
-              body = json.loads(response.read().decode("utf-8"))
-          if not body.get("ok"):
-              raise SystemExit(f"Telegram API returned failure: {body}")
+          if not sent.get("ok"):
+              raise SystemExit(f"Telegram sendMessage returned failure: {sent}")
+
           print("Telegram test message sent successfully.")
           PY
