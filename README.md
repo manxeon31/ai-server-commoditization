@@ -16,6 +16,7 @@ It tracks **Dell Technologies, NVIDIA, Hewlett Packard Enterprise, and Super Mic
 6. Extracts selected metrics and qualitative signals without guessing unavailable values.
 7. Calculates a 0-100 **AI Server Commoditization Index**.
 8. Writes a Markdown report under `reports/`, appends structured history, advances the baseline, and opens a GitHub Issue.
+9. Sends the completed-cycle summary to the same private Telegram bot/chat pattern used by the user's existing alert repos.
 
 ## Why the cycle is accession-based
 
@@ -63,6 +64,7 @@ src/ai_server_tracker/
   scoring.py
   report.py
   main.py
+  telegram_notify.py
 data/
   state.json
   history.json
@@ -72,11 +74,13 @@ tests/
 
 ## Required setup
 
-GitHub Actions needs one repository secret because the SEC requests a descriptive `User-Agent` with contact information.
+GitHub Actions needs three repository secrets.
 
 Go to:
 
 **Settings → Secrets and variables → Actions → New repository secret**
+
+### SEC access
 
 Name:
 
@@ -92,9 +96,29 @@ ai-server-commoditization your-email@example.com
 
 Use an address you control. The workflow does not print the value.
 
+### Telegram delivery
+
+Reuse the same values already used by the existing `trading-bot` / `macro-gravity-alert` GitHub Actions workflows:
+
+```text
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+```
+
+The Telegram alert fires only when a **complete new earnings cycle** produces a report. Baseline and partial-cycle runs remain silent.
+
+Telegram message contents:
+
+- `[AI Server Commoditization]` prefix
+- current index
+- change versus the previous completed cycle
+- confidence
+- top three scored commoditization pressures
+- direct link to the committed Markdown report
+
 ## Run manually
 
-After creating the secret:
+After creating the secrets:
 
 **Actions → AI Server Commoditization Monitor → Run workflow**
 
@@ -118,6 +142,14 @@ export SEC_USER_AGENT="ai-server-commoditization your-email@example.com"
 python -m ai_server_tracker.main --verbose
 ```
 
+Preview the latest Telegram message without sending it:
+
+```bash
+python -m ai_server_tracker.telegram_notify \
+  --report-url "https://github.com/OWNER/REPO/blob/main/reports/latest.md" \
+  --dry-run
+```
+
 ## Design rules
 
 - SEC / official earnings documents first.
@@ -126,6 +158,7 @@ python -m ai_server_tracker.main --verbose
 - No report from a partial earnings cycle.
 - No weekly state churn when nothing changed.
 - Index calculation stays deterministic even if an LLM commentary layer is added later.
+- Telegram stays event-driven: no completed report, no alert.
 
 ## Next useful upgrades
 
