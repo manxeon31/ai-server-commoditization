@@ -15,6 +15,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  maintain-schedule:
+    # A real commit provides activity during quiet earnings cycles. Workflow runs
+    # alone do not prevent the 60-day inactivity cutoff. This cannot recover an
+    # already-disabled schedule; the independent Codex watchdog handles that.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out default branch history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Record activity after 30 quiet days
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B schedule-maintenance origin/main
+          latest=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if (( now - latest < 30 * 24 * 60 * 60 )); then
+            echo "Repository activity is recent; no maintenance commit needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: maintain scheduled monitor activity"
+          # A concurrent push causes a safe failure, never a force push.
+          git push origin HEAD:main
+
   monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 15
